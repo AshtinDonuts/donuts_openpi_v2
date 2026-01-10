@@ -1,7 +1,10 @@
 """
 Script to convert Aloha hdf5 data to the LeRobot dataset v2.0 format.
 
-Example usage: uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw-dir /path/to/raw/data --repo-id <org>/<dataset-name>
+Example usage: 
+  uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw-dir /path/to/raw/data --repo-id <org>/<dataset-name>
+  uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw-dir /path/to/raw/data  # repo-id will be auto-generated from directory name
+
 """
 
 import dataclasses
@@ -228,7 +231,7 @@ def populate_dataset(
 
 def port_aloha(
     raw_dir: Path,
-    repo_id: str,
+    repo_id: str | None = None,
     raw_repo_id: str | None = None,
     task: str = "DEBUG",
     *,
@@ -238,6 +241,17 @@ def port_aloha(
     mode: Literal["video", "image"] = "image",
     dataset_config: DatasetConfig = DEFAULT_DATASET_CONFIG,
 ):
+    # Generate default repo_id from raw_dir name if not provided
+    if repo_id is None:
+        # Use the directory name, sanitized for use as a repo_id
+        repo_id = raw_dir.name.replace(" ", "_").replace("/", "_")
+        # If push_to_hub is True but no repo_id was provided, disable it
+        # (since we can't push without a proper org/repo format)
+        if push_to_hub:
+            print(f"Warning: push_to_hub is True but no repo_id provided. Generated repo_id '{repo_id}' is local-only.")
+            print("Set push_to_hub=False or provide --repo-id <org>/<dataset-name> to push to hub.")
+            push_to_hub = False
+    
     if (LEROBOT_HOME / repo_id).exists():
         shutil.rmtree(LEROBOT_HOME / repo_id)
 

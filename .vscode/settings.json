@@ -1,11 +1,10 @@
-{
-    "[python]": {
-        "editor.defaultFormatter": "charliermarsh.ruff",
-        "editor.formatOnSave": true,
-    },
-    "python.testing.pytestArgs": [
-        "src"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
-}
+// JUST USE THE CORRECT INTERPRETER AT THE BOTTOM 
+//
+// {
+//   "python.analysis.extraPaths": [
+//     "${workspaceFolder}/.venv_openpi_uv/lib/python3.11/site-packages"
+//   ],
+//   "python.autoComplete.extraPaths": [
+//     "${workspaceFolder}/.venv_openpi_uv/lib/python3.11/site-packages"
+//   ]
+// }
