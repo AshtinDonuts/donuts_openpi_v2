@@ -4,12 +4,16 @@ A modified script to convert Aloha SOLO hdf5 data to the LeRobot dataset v2.0 fo
 This one is written to support a single Left hand side arm in mind, thus some of the naming.
 In practice it should work for both sides.
 
-The dataset will be created locally with an auto-generated name. To push to the hub, provide --repo-id <org>/<dataset-name>.
+
+# LOG
+# - modified to use snapshot_download
+# - LEROBOT_HOME deprecated -> modified to use HF_LEROBOT_HOME
+# - Modified to auto-generate dataset name. To push to hub provide --repo-id <org>/<dataset-name>
 
 Example usage: 
   uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw-dir /path/to/raw/data --repo-id <org>/<dataset-name>
 
-  uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw-dir /mnt/c2d9b23a-b03e-4fdb-82ad-59f039ec9e3e/khw/picknplace_JAN8_1  # repo-id will be auto-generated from directory name
+  uv run convert_aloha_data_to_lerobot.py --raw-dir /mnt/c2d9b23a-b03e-4fdb-82ad-59f039ec9e3e/khw/picknplace_JAN8_1  # repo-id will be auto-generated from directory name
 
 """
 
@@ -19,9 +23,9 @@ import shutil
 from typing import Literal
 
 import h5py
-from lerobot.common.datasets.lerobot_dataset import LEROBOT_HOME
+from huggingface_hub import snapshot_download
+from lerobot.common.constants import HF_LEROBOT_HOME
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.common.datasets.push_dataset_to_hub._download_raw import download_raw
 import numpy as np
 import torch
 import tqdm
@@ -60,6 +64,7 @@ def create_empty_dataset(
     ]
 
     ##  Modify as need be
+    ##  This is the list of camera names from interbotix aloha_solo - record_episode.py
     cameras = [
         "camera_left_shoulder",
         "camera_right_shoulder",
@@ -112,8 +117,8 @@ def create_empty_dataset(
             ],
         }
 
-    if Path(LEROBOT_HOME / repo_id).exists():
-        shutil.rmtree(LEROBOT_HOME / repo_id)
+    if Path(HF_LEROBOT_HOME / repo_id).exists():
+        shutil.rmtree(HF_LEROBOT_HOME / repo_id)
 
     return LeRobotDataset.create(
         repo_id=repo_id,
@@ -183,10 +188,9 @@ def load_raw_episode_data(
         imgs_per_cam = load_raw_images_per_camera(
             ep,
             [
-                "cam_high",
-                "cam_low",
-                "cam_left_wrist",
-                "cam_right_wrist",
+                "camera_left_shoulder",
+                "camera_right_shoulder",
+                "camera_wrist_left",    
             ],
         )
 
@@ -212,6 +216,7 @@ def populate_dataset(
             frame = {
                 "observation.state": state[i],
                 "action": action[i],
+                "task": task,
             }
 
             for camera, img_array in imgs_per_cam.items():
@@ -224,7 +229,7 @@ def populate_dataset(
 
             dataset.add_frame(frame)
 
-        dataset.save_episode(task=task)
+        dataset.save_episode()
 
     return dataset
 
@@ -252,15 +257,33 @@ def port_aloha(
             print("Set push_to_hub=False or provide --repo-id <org>/<dataset-name> to push to hub.")
             push_to_hub = False
     
-    if (LEROBOT_HOME / repo_id).exists():
-        shutil.rmtree(LEROBOT_HOME / repo_id)
+    if (HF_LEROBOT_HOME / repo_id).exists():
+        shutil.rmtree(HF_LEROBOT_HOME / repo_id)
 
     if not raw_dir.exists():
         if raw_repo_id is None:
             raise ValueError("raw_repo_id must be provided if raw_dir does not exist")
-        download_raw(raw_dir, repo_id=raw_repo_id)
+        # Download raw dataset from HuggingFace Hub
+        print(f"Downloading raw dataset from {raw_repo_id} to {raw_dir}...")
+        snapshot_download(
+            repo_id=raw_repo_id,
+            repo_type="dataset",
+            local_dir=raw_dir,
+        )
 
     hdf5_files = sorted(raw_dir.glob("episode_*.hdf5"))
+    
+    if not hdf5_files:
+        raise ValueError(f"No episode_*.hdf5 files found in {raw_dir}")
+    
+    # Validate cameras exist in the data
+    detected_cameras = get_cameras(hdf5_files)
+    expected_cameras = ["camera_left_shoulder", "camera_right_shoulder", "camera_wrist_left"]
+    missing_cameras = [cam for cam in expected_cameras if cam not in detected_cameras]
+    if missing_cameras:
+        print(f"Warning: Expected cameras {missing_cameras} not found in HDF5 files.")
+        print(f"Found cameras: {detected_cameras}")
+        print("Proceeding with detected cameras, but dataset schema may not match.")
 
     dataset = create_empty_dataset(
         repo_id,
@@ -276,7 +299,6 @@ def port_aloha(
         task=task,
         episodes=episodes,
     )
-    dataset.consolidate()
 
     if push_to_hub:
         dataset.push_to_hub()

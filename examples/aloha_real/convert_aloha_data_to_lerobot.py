@@ -1,5 +1,8 @@
 """
-Script to convert Aloha hdf5 data to the LeRobot dataset v2.0 format.
+A modified script to convert Aloha hdf5 data to the LeRobot dataset v2.0 format.
+
+The dataset will be created locally with an auto-generated name. To push to the hub, provide --repo-id <org>/<dataset-name>.
+
 
 Example usage: 
   uv run examples/aloha_real/convert_aloha_data_to_lerobot.py --raw-dir /path/to/raw/data --repo-id <org>/<dataset-name>
