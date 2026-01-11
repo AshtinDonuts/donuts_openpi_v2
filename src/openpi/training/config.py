@@ -930,6 +930,26 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
     ),
+    ###  ALOHA_SIM WITH LORA - FAKE
+        TrainConfig(
+        name="pi0_aloha_sim_low_mem",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotAlohaDataConfig(
+            repo_id="lerobot/aloha_sim_transfer_cube_human",
+            default_prompt="Transfer cube",
+            use_delta_joint_actions=False,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10,
+        # Freeze filter, similar to the Libero configs
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning to save memory.
+        ema_decay=None,
+        # Reduce batch size to save memory during initialization.
+        batch_size=16,
+    ),
     #
     # Debugging configs.
     #
@@ -968,6 +988,27 @@ _CONFIGS = [
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
+
+    #
+    #  MY CONFIGURATIONS JAN 11 2026
+    ##
+    TrainConfig(
+        name="pi0_aloha_low_mem",
+        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        data=LeRobotAlohaDataConfig(
+            assets=AssetsConfig(asset_id="trossen"),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        # Freeze filter, similar to the Libero configs
+        freeze_filter=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ).get_freeze_filter(),
+        # Turn off EMA for LoRA finetuning to save memory.
+        ema_decay=None,
+        # Reduce batch size to save memory during initialization.
+        batch_size=16,
+    ),
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
