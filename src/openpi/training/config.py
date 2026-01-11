@@ -988,27 +988,67 @@ _CONFIGS = [
     # RoboArena & PolaRiS configs.
     *roboarena_config.get_roboarena_configs(),
     *polaris_config.get_polaris_configs(),
-
     #
     #  MY CONFIGURATIONS JAN 11 2026
+    #  This is for a single (Left)) ALOHA ViperX arm
+    #  Currently this is ONLY for minimal_hdf5_ds, 
+    #  which is a simple pick and place dataset with 2 samples.
     ##
     TrainConfig(
-        name="pi0_aloha_low_mem",
+        name="pi0_aloha_solo_low_mem",
         model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
         data=LeRobotAlohaDataConfig(
-            assets=AssetsConfig(asset_id="trossen"),
+            # For local datasets, two options:
+            # 1. Put your dataset in ~/.cache/huggingface/lerobot/<dataset_name> and use:
+            #    repo_id="my_dataset_name"
+            # 2. Use absolute path (may require code modification if it doesn't work):
+            #    repo_id="/absolute/path/to/your/dataset"
+            repo_id="minimal_hdf5_ds",  # TODO: Replace with your actual dataset path
+            assets=AssetsConfig(
+                asset_id="trossen"
+            ),
+            default_prompt="Pick up the orange lego and release it over box",
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "camera_left_shoulder": "observation.images.camera_left_shoulder",
+                                "camera_right_shoulder": "observation.images.camera_right_shoulder",
+                                "camera_wrist_left": "observation.images.camera_wrist_left",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ]
+            ),
         ),
+        
+        # pi-0 base seems safest -> least constrained bias
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        
+        num_train_steps=10,  ## TODO: Modify this after debugging
+
+        # reset_pose: 6-DOF joint position [waist, shoulder, elbow, forearm_roll, wrist_angle, wrist_rotate]
+        # Used by AlohaRealEnvironment to reset arm to home position at episode start
+        # Default for single left arm: [0, -0.96, 1.16, 0, -0.3, 0]
+        # NOTE: Updated to match the picknplace experiment starting position
+        #       Seem to be used in real_env rollouts, and shouldn't matter during training.
+        policy_metadata={"reset_pose": [0.0, -0.6, 0.5, 0.0, 1.2, 0.0]}, 
+        
         # Freeze filter, similar to the Libero configs
         freeze_filter=pi0_config.Pi0Config(
             paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
         ).get_freeze_filter(),
+        
         # Turn off EMA for LoRA finetuning to save memory.
         ema_decay=None,
+        
         # Reduce batch size to save memory during initialization.
         batch_size=16,
     ),
+    ### 
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
